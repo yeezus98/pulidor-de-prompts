@@ -1,0 +1,44 @@
+# Compila la app de Mac en los servidores de GitHub y publica la versión.
+# Se activa al subir una etiqueta tipo v0.1.0 (o a mano desde la pestaña Actions).
+name: Publicar versión
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - run: npm install
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        with:
+          tagName: v__VERSION__
+          releaseName: "Pulidor de Prompts v__VERSION__"
+          releaseBody: "Para instalar: descarga el archivo .dmg de abajo y arrastra la app a Aplicaciones. Si ya la tienes, se actualiza sola."
+          releaseDraft: false
+          prerelease: false
+          args: --target universal-apple-darwin

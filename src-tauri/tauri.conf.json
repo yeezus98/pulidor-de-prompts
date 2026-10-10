@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Pulidor de Prompts",
+  "version": "0.1.0",
+  "identifier": "com.yeezus98.pulidordeprompts",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Pulidor de Prompts",
+        "width": 1000,
+        "height": 780,
+        "minWidth": 420,
+        "minHeight": 560
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "createUpdaterArtifacts": true,
+    "category": "Productivity",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgwRTBBRjgyMTBFOUI3RjMKUldUenQra1FncS9nZ0hmU0kxd1ZGN3FIZytmbTJxbHQ1VElIRUNHWE4vT3NQUVB3YWY2NXV6OU0K",
+      "endpoints": [
+        "https://github.com/yeezus98/pulidor-de-prompts/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}
