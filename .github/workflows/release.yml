@@ -1,36 +1,61 @@
 # Compila la app de Mac en los servidores de GitHub y publica la versión.
-# Se activa al subir una etiqueta tipo v0.1.0 (o a mano desde la pestaña Actions).
+# Se activa sola cuando cambia el número de versión en src-tauri/tauri.conf.json,
+# o a mano desde la pestaña Actions (Run workflow). Si esa versión ya existe, no hace nada.
 name: Publicar versión
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths: ["src-tauri/tauri.conf.json"]
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   mac:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - name: Revisar si esta versión ya está publicada
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if gh release view "v$V" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "La versión v$V ya está publicada; no hay nada que hacer."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v5
+        if: steps.check.outputs.skip != 'true'
         with:
-          node-version: 20
+          node-version: 22
 
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.check.outputs.skip != 'true'
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - uses: swatinem/rust-cache@v2
+        if: steps.check.outputs.skip != 'true'
         with:
           workspaces: "./src-tauri -> target"
 
       - run: npm install
+        if: steps.check.outputs.skip != 'true'
 
       - uses: tauri-apps/tauri-action@v0
+        if: steps.check.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

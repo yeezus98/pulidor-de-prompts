@@ -6,10 +6,11 @@
 // así que reemplazar o actualizar la app no la toca.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::Manager;
 
-const EMPTY: &str = "{\"v\":2,\"chats\":[]}";
+const EMPTY: &str = "{\"v\":3,\"chats\":[]}";
+const MAX_IMPORT_BYTES: u64 = 20 * 1024 * 1024;
 
 fn data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
@@ -19,6 +20,13 @@ fn data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 
 fn history_file(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(data_dir(app)?.join("historial.json"))
+}
+
+fn is_json_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("json"))
+        .unwrap_or(false)
 }
 
 /// Lee el historial. Si el archivo no existe, devuelve un historial vacío.
@@ -57,25 +65,45 @@ fn backup_history(app: tauri::AppHandle, label: String) -> Result<(), String> {
     fs::copy(&path, backup).map(|_| ()).map_err(|e| e.to_string())
 }
 
-/// Exporta el historial a la carpeta Descargas y devuelve la ruta del archivo.
+/// Escribe un archivo .json en la ruta que eligió el usuario en la ventana de "Guardar".
 #[tauri::command]
-fn export_history(app: tauri::AppHandle, data: String) -> Result<String, String> {
-    let dir = app.path().download_dir().map_err(|e| e.to_string())?;
-    let path = dir.join("pulidor-historial.json");
-    fs::write(&path, data).map_err(|e| e.to_string())?;
-    Ok(path.to_string_lossy().into_owned())
+fn write_json_file(path: String, data: String) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    if !is_json_path(&p) {
+        return Err("El archivo debe terminar en .json".into());
+    }
+    serde_json::from_str::<serde_json::Value>(&data).map_err(|_| "Datos inválidos".to_string())?;
+    fs::write(p, data).map_err(|e| e.to_string())
+}
+
+/// Lee un archivo .json que eligió el usuario en la ventana de "Abrir".
+#[tauri::command]
+fn read_json_file(path: String) -> Result<String, String> {
+    let p = PathBuf::from(&path);
+    if !is_json_path(&p) {
+        return Err("Elige un archivo .json".into());
+    }
+    let size = fs::metadata(&p).map_err(|e| e.to_string())?.len();
+    if size > MAX_IMPORT_BYTES {
+        return Err("El archivo es demasiado grande".into());
+    }
+    fs::read_to_string(p).map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             load_history,
             save_history,
             backup_history,
-            export_history
+            write_json_file,
+            read_json_file
         ])
         .run(tauri::generate_context!())
         .expect("No se pudo iniciar Pulidor de Prompts");
